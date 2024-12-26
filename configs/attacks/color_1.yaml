@@ -1,0 +1,9 @@
+attack: ColorAttack
+
+name: "color_1"
+params:
+  norm_type: "l_inf"
+  eps: 2/255 # put double the actual size, since images are normalized [-1, 1]
+  step_size: 0.1
+  max_iter: 5
+

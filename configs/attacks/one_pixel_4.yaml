@@ -1,0 +1,7 @@
+attack: OnePixelAttack
+
+name: "onepixel_4"
+params:
+  pixels: 4 
+  steps: 10 
+  popsize: 10

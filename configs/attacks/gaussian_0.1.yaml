@@ -1,0 +1,5 @@
+attack: GaussNoiseAttack
+
+name: "gaussian_0.1"
+params:
+  std: 0.1

@@ -58,7 +58,9 @@ if __name__ == '__main__':
                             num_workers=args.num_workers,
                             pin_memory=True)
 
-    folder_name = setting.base_model + "_" + setting.ft.fine_tune_type + "_" + setting.ft.attack + "_" + setting.ft.train_type
+    post_fix = '' if "save_postfix" not in setting.keys() else "_" + setting.save_postfix
+    folder_name = setting.base_model + "_" + setting.ft.fine_tune_type + "_" + setting.ft.attack + "_" + setting.ft.train_type + post_fix
+                    
     save_path = os.path.join(args.save_dir, folder_name)
     
     os.makedirs(save_path, exist_ok=True)

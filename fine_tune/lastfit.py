@@ -4,7 +4,7 @@ from models import *
 
 
 class LastLayerTune(nn.Module):
-    def __init__(self, pretrained_model):
+    def __init__(self, pretrained_model, **kwargs):
         super().__init__()
         
         self.model = pretrained_model

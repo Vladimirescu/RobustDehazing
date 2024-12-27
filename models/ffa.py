@@ -68,7 +68,7 @@ class Group(nn.Module):
 
 
 class FFA(nn.Module):
-    def __init__(self,gps,blocks,conv=default_conv):
+    def __init__(self, gps, blocks, conv=default_conv):
         super(FFA, self).__init__()
         self.gps=gps
         self.dim=64

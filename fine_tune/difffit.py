@@ -4,7 +4,7 @@ from models import *
 
 
 class DiffFitModel(nn.Module):
-    def __init__(self, pretrained_model, train_params=["bias"]):
+    def __init__(self, pretrained_model, train_params=["bias"], **kwargs):
         super().__init__()
         
         self.model = pretrained_model

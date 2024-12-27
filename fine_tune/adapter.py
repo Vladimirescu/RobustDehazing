@@ -7,11 +7,12 @@ class TargetAdapt(nn.Module):
     """
     Adds a learnable linear layer after each target block.
     """
-    def __init__(self, pretrained_model):
+    def __init__(self, pretrained_model, k=3, **kwargs):
         super().__init__()
         
         self.model = pretrained_model
         self.new_weights = nn.ParameterList()
+        self.k = k
 
         for name, p in self.model.named_parameters():
             p.requires_grad = False
@@ -23,15 +24,15 @@ class TargetAdapt(nn.Module):
         else:
             raise ValueError(f"Unknown model type {self.model}.")
 
-        self._add_new_params(target_layer)
+        self._add_new_params(target_layer, k=self.k)
 
-    def _add_new_params(self, target_layer):
+    def _add_new_params(self, target_layer, k):
         for name, module in self.model.named_modules():
             if isinstance(module, target_layer):
         
                 out_ch = module.mlp.mlp[-1].out_channels
                 adaptor = nn.Conv2d(
-                    out_ch, out_ch, 3, 1, 1, bias=False
+                    out_ch, out_ch, self.k, 1, self.k // 2, bias=False
                 )
                 identity_init(adaptor)
 

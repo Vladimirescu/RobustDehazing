@@ -106,7 +106,7 @@ def load_model(args):
         network = eval(args.model.replace('-', '_'))()
         network.cuda()
         
-        saved_model_dir = os.path.join(args.save_dir, args.exp, args.model)
+        saved_model_dir = os.path.join(args.save_dir, args.type, args.model)
 
         exists = False
 
@@ -130,6 +130,7 @@ def load_model(args):
   
         base = setting.base_model
         fine = setting.ft.fine_tune_type
+        kwgs = {} if "fine_tune_kwargs" not in setting.ft.keys() else setting.ft.fine_tune_kwargs
   
         network = eval(base.replace('-', '_'))()
         saved_model_dir = os.path.join(args.save_dir, "fine_tuned", args.model, "fine_tuned")
@@ -137,7 +138,7 @@ def load_model(args):
         if fine not in str_to_ft.keys():
             raise ValueError(f"Unknown {fine}")
 
-        network = str_to_ft[fine](network)
+        network = str_to_ft[fine](network, **kwgs)
   
         exists = False
         for ext in allowed_extensions:
@@ -173,5 +174,8 @@ if __name__ == '__main__':
                              num_workers=args.num_workers,
                              pin_memory=True)
 
-    result_dir = os.path.join(args.result_dir, args.exp, args.model)
+    if args.fine_tuned:
+        result_dir = os.path.join(args.result_dir, "fine_tuned", args.model)
+    else:
+        result_dir = os.path.join(args.result_dir, args.exp, args.model)
     test(test_loader, network, result_dir)

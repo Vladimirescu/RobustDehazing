@@ -109,6 +109,10 @@ if __name__ == '__main__':
                              pin_memory=True)
 
     attack_config = OmegaConf.load(args.attack_config)
-    result_dir = os.path.join(args.result_dir, args.exp, args.model, attack_config.name)
     
+    if args.fine_tuned:
+        result_dir = os.path.join(args.result_dir, "fine_tuned", args.model, attack_config.name)
+    else:
+        result_dir = os.path.join(args.result_dir, args.type, args.model, attack_config.name)
+        
     test_adv(test_loader, network, result_dir, attack_config)

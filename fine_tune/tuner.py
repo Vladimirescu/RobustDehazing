@@ -10,8 +10,9 @@ from attacks import *
 
 class FineTuningLightningModule(pl.LightningModule):
 	def __init__(self, model, 
-				  lr=1e-4, 
-				  fine_tune_type="difffit",
+				lr=1e-4, 
+				fine_tune_type="difffit",
+				fine_tune_kwargs={},
 				attack=None,
 				attack_kwargs={},
 				train_type="AT",
@@ -33,6 +34,7 @@ class FineTuningLightningModule(pl.LightningModule):
 		self.loss_fn = nn.L1Loss()  # Example loss function
 
 		self.fine_tune_type = fine_tune_type
+		self.fine_tune_kwargs = fine_tune_kwargs
 		self._prepare_model()
   
 		if attack is None:
@@ -49,7 +51,7 @@ class FineTuningLightningModule(pl.LightningModule):
 		elif self.fine_tune_type == "last":
 			self.model = LastLayerTune(self.model)
 		elif self.fine_tune_type == "adapt":
-			self.model = TargetAdapt(self.model)
+			self.model = TargetAdapt(self.model, k=self.fine_tune_kwargs.k)
 		else:
 			raise ValueError(f"Unknown fine-tuning type {self.fine_tune_type}")
 

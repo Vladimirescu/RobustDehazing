@@ -10,44 +10,31 @@ from omegaconf import OmegaConf
 
 from pytorch_msssim import ssim
 
-from utils import AverageMeter, write_img, chw_to_hwc
+from utils import AverageMeter, write_img, chw_to_hwc, extract_patches, reconstruct_image, load_model
 from datasets.loader import PairLoader
-from models import *
-from fine_tune import *
 
 
-str_to_ft = {
-    "difffit": DiffFitModel,
-    "last": LastLayerTune,
-    "adapt": TargetAdapt
-}
-
-
-def load_model_weights(model, checkpoint_path):
-    checkpoint = torch.load(checkpoint_path)
-    checkpoint_state_dict = checkpoint['state_dict'] if 'state_dict' in checkpoint else checkpoint
+def predict_patches(model, imgs, bs=4):
+    outs = []
     
-    model_state_dict = model.state_dict()
-
-    new_state_dict = {}
-    for key in checkpoint_state_dict:
-        key_stripped = key.replace("model.", "").replace("module.", "")  # Remove prefixes
-        for model_key in model_state_dict:
-            model_key_stripped = model_key.replace("model.", "").replace("module.", "")
-            # Match by name and shape
-            if key_stripped == model_key_stripped and model_state_dict[model_key].shape == checkpoint_state_dict[key].shape:
-                new_state_dict[model_key] = checkpoint_state_dict[key]
-                break
-
-    model.load_state_dict(new_state_dict, strict=False)
+    n = imgs.shape[0] // bs
+    rest = imgs.shape[0] % bs
     
-    print(f"Weights loaded with {len(new_state_dict) / len(model_state_dict) * 100} % parameters matched.")
+    for i in range(n):
+        outs.append(model(imgs[i * bs: (i + 1) * bs]))
+        
+    if rest > 0:
+        outs.append(model(imgs[-rest:]))
+        
+    return torch.cat(outs, dim=0)
     
-    return model
 
-
-def test(test_loader, network, result_dir):
+def test(test_loader, network, result_dir, 
+         max_size=1024, 
+         show_original_psnr=False):
     PSNR = AverageMeter()
+    if show_original_psnr:
+        PSNR_o = AverageMeter()
     SSIM = AverageMeter()
 
     torch.cuda.empty_cache()
@@ -63,15 +50,33 @@ def test(test_loader, network, result_dir):
         filename = batch['filename']
 
         with torch.no_grad():
-            output = network(inpt).clamp_(-1, 1)
+            _, _, H, W = inpt.shape
+            if H > max_size or W > max_size:
+                """First approach - patchify, predict, reconstruct"""
+                # patches, padded_image = extract_patches(inpt, max_size)
+                # print(f"Constructed patches {patches.shape}.")
+                # output_patches = predict_patches(network, patches)
+                # output = reconstruct_image(output_patches, inpt, max_size)
+                
+                """Second approach - reshape"""
+                inpt = F.interpolate(inpt, size=(max_size, max_size), mode="bilinear", align_corners=False)
+                target = F.interpolate(target, size=(max_size, max_size), mode="bilinear", align_corners=False)
+                output = network(inpt)
+            else:
+                output = network(inpt)
 
-            # [-1, 1] to [0, 1]
-            output = output * 0.5 + 0.5
+            output = output.clamp(-1, 1) * 0.5 + 0.5
             target = target * 0.5 + 0.5
 
             psnr_val = 10 * torch.log10(
                 1 / (F.mse_loss(output, target, reduction='none').mean(dim=(1, 2, 3)) + 1e-7)
             )
+            if show_original_psnr:
+                # inpt is always in [-1, 1]
+                inpt = inpt * 0.5 + 0.5
+                psnr_o = 10 * torch.log10(
+                    1 / (F.mse_loss(inpt, target, reduction='none').mean(dim=(1, 2, 3)) + 1e-7)
+                )
 
             _, _, H, W = output.size()
             down_ratio = max(1, round(min(H, W) / 256))
@@ -81,6 +86,8 @@ def test(test_loader, network, result_dir):
 
         PSNR.update(psnr_val.mean().item())
         SSIM.update(ssim_val.mean().item())
+        if show_original_psnr:
+            PSNR_o.update(psnr_o.mean().item())
 
         print('Test: [{0}]\t'
               'PSNR: {psnr.val:.02f} ({psnr.avg:.02f})\t'
@@ -92,90 +99,44 @@ def test(test_loader, network, result_dir):
             f_result.write('%s,%.02f,%.03f\n'%(filename[i], psnr_val[i].item(), ssim_val[i].item()))
             write_img(os.path.join(result_dir, 'imgs', filename[i]), out_img[i])
 
-    f_result.write('Avg PSNR/SSIM ,%.02f,%.03f\n'%(PSNR.avg, SSIM.avg))
-    
-    f_result.close()
-
-    print(f"Average results: PSNR = {PSNR.avg:.2f} SSIM = {SSIM.avg:.4f}")
-
-
-def load_model(args):
-    allowed_extensions = [".pth", ".pk", ".ckpt"]
-    
-    if not args.fine_tuned:
-        network = eval(args.model.replace('-', '_'))()
-        network.cuda()
-        
-        saved_model_dir = os.path.join(args.save_dir, args.type, args.model)
-
-        exists = False
-
-        for ext in allowed_extensions:
-            if os.path.exists(saved_model_dir + ext):
-                print(f"Loading {saved_model_dir + ext}")
-                network = load_model_weights(network, saved_model_dir + ext)
-                exists = True
-                break
-
-        if not exists:
-            raise ValueError(f"No existing checkpoint")
-
-        return network
-
+    if show_original_psnr:
+        f_result.write('Avg PSNR/PSNR_original/SSIM ,%.02f,%.02f,%.03f\n'%(PSNR.avg, PSNR_o.avg, SSIM.avg))
+        f_result.close()
+        print(f"Average results: PSNR = {PSNR.avg:.2f} (vs PSNR = {PSNR_o.avg:.2f}) SSIM = {SSIM.avg:.4f}")
     else:
-        folder = os.path.join(args.save_dir, "fine_tuned", args.model)
-        setting = OmegaConf.load(
-            os.path.join(folder, "setting")
-        )
-  
-        base = setting.base_model
-        fine = setting.ft.fine_tune_type
-        kwgs = {} if "fine_tune_kwargs" not in setting.ft.keys() else setting.ft.fine_tune_kwargs
-  
-        network = eval(base.replace('-', '_'))()
-        saved_model_dir = os.path.join(args.save_dir, "fine_tuned", args.model, "fine_tuned")
+        f_result.write('Avg PSNR/SSIM ,%.02f,%.03f\n'%(PSNR.avg, SSIM.avg))
+        f_result.close()
+        print(f"Average results: PSNR = {PSNR.avg:.2f} SSIM = {SSIM.avg:.4f}")
 
-        if fine not in str_to_ft.keys():
-            raise ValueError(f"Unknown {fine}")
 
-        network = str_to_ft[fine](network, **kwgs)
-  
-        exists = False
-        for ext in allowed_extensions:
-            if os.path.exists(saved_model_dir + ext):
-                print(f"Loading {saved_model_dir + ext}")
-                network = load_model_weights(network, saved_model_dir + ext)
-                exists = True
-                break
-    
-        if not exists:
-            raise ValueError(f"No existing checkpoint")
 
-        return network
 
         
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='dehazeformer-t', type=str, help='model name')
-    parser.add_argument('--num_workers', default=16, type=int, help='number of workers')
-    parser.add_argument('--data_dir', default='D:/RESIDE/', type=str, help='path to dataset')
+    parser.add_argument('--num_workers', default=2, type=int, help='number of workers')
+    parser.add_argument('--dataset', default='reside', type=str, help='path to dataset')
     parser.add_argument('--save_dir', default='./saved_models/', type=str, help='path to models saving')
     parser.add_argument('--result_dir', default='./results/', type=str, help='path to results saving')
-    parser.add_argument('--type', default='base', type=str, help='experiment setting')
     parser.add_argument("--fine_tuned", action="store_true", help="Whether this was a fine-tuned model. If so, lod in 2 stages.")
     args = parser.parse_args()
     
     network = load_model(args).cuda()
- 
-    test_dataset = PairLoader(args.data_dir, 'test', 'valid', size=256)
+    data_config = OmegaConf.load(
+        os.path.join("./configs/data", args.dataset + ".yaml")
+    )
+    
+    test_dataset = PairLoader(data_config.test_path, 'valid', size=data_config.test_size)
     test_loader = DataLoader(test_dataset,
-                             batch_size=4,
+                             batch_size=16 if data_config.test_size else 1,
                              num_workers=args.num_workers,
                              pin_memory=True)
 
     if args.fine_tuned:
-        result_dir = os.path.join(args.result_dir, "fine_tuned", args.model)
+        result_dir = os.path.join(args.result_dir, data_config.name, "fine_tuned", args.model)
     else:
-        result_dir = os.path.join(args.result_dir, args.exp, args.model)
+        result_dir = os.path.join(args.result_dir, data_config.name, "base", args.model)
+    
     test(test_loader, network, result_dir)

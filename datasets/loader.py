@@ -55,15 +55,26 @@ def align(imgs=[], size=256):
 
 
 class PairLoader(Dataset):
-    def __init__(self, data_dir, sub_dir, mode, size=256, edge_decay=0, only_h_flip=True):
+    """
+    Loader of (hazy, non-hazy) image pairs.
+    Both are loaded and normalized in [-1, 1].
+    
+    To adapt each network, its recommended to add in the forward() of each module the corresponding 
+    pre-processing.
+    """
+    def __init__(self, data_dir, mode, size=256, edge_decay=0, only_h_flip=True):
         assert mode in ['train', 'valid', 'test']
+
+        if size is None:
+            print("Changing to `test` mode.")
+            mode = "test"
 
         self.mode = mode
         self.size = size
         self.edge_decay = edge_decay
         self.only_h_flip = only_h_flip
 
-        self.root_dir = os.path.join(data_dir, sub_dir)
+        self.root_dir = data_dir
   
         self.img_names = sorted(os.listdir(os.path.join(self.root_dir, 'GT')))
         self.img_num = len(self.img_names)

@@ -1,0 +1,7 @@
+name: RESIDE
+
+train_path: /alpha/vvasilescu/RESIDE/train/train
+train_size: 256
+
+test_path: /alpha/vvasilescu/RESIDE/test
+test_size: 256

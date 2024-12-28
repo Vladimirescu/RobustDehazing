@@ -9,7 +9,7 @@ from attacks import *
 
 
 class FineTuningLightningModule(pl.LightningModule):
-	def __init__(self, model, 
+	def __init__(self, model,
 				lr=1e-4, 
 				fine_tune_type="difffit",
 				fine_tune_kwargs={},
@@ -19,6 +19,8 @@ class FineTuningLightningModule(pl.LightningModule):
 				train_type_kwargs={}):
 		"""
 		:param model: nn.Module, loaded with pre-trained weights
+		Model is expected to accept inputs and return predictions in [-1, 1] range.
+  
 		:param fine_tune_type: string, on of the following:
 			- last: only learns the final layer
 			- first-last: first and last layers are learned
@@ -44,6 +46,9 @@ class FineTuningLightningModule(pl.LightningModule):
 		self.train_type = train_type
 
 		self.tr_kwgs = train_type_kwargs
+  
+		self.val_mse_values = []
+		self.val_psnr_values = []
 
 	def _prepare_model(self):
 		if self.fine_tune_type == "difffit":
@@ -85,7 +90,7 @@ class FineTuningLightningModule(pl.LightningModule):
 	
 			y_ = self(torch.cat([x, x_], dim=0))
 			y_pred, y_pred_adv = torch.chunk(y_, chunks=2, dim=0)
-      
+	  
 			loss = self.loss_fn(y_pred, y)
 			loss_adv = self.loss_fn(y_pred, y_pred_adv)
    
@@ -96,22 +101,37 @@ class FineTuningLightningModule(pl.LightningModule):
   
 		else:
 			raise ValueError(f"Train type {self.train_type} not implemented.")
-		  ###
 		
 		return loss
 
 	def validation_step(self, batch, batch_idx):
 		x, y = batch['source'], batch['target']
 								
-		output = self(x).clamp_(-1, 1)	
+		output = self(x).clamp_(-1, 1)
    
 		mse_loss = F.mse_loss(
 			output * 0.5 + 0.5, y * 0.5 + 0.5, reduction='none'
 		).mean((1, 2, 3))
+  
 		psnr = 10 * torch.log10(1 / mse_loss).mean()
   
 		self.log("mse_val", mse_loss.mean().item())
 		self.log("psnr_val", psnr.item())
+  
+		self.val_mse_values.append(mse_loss.mean().item())
+		self.val_psnr_values.append(psnr.item())
+
+	def on_validation_epoch_end(self):
+		avg_mse = sum(self.val_mse_values) / len(self.val_mse_values)
+		avg_psnr = sum(self.val_psnr_values) / len(self.val_psnr_values)
+
+		self.log("avg_mse_val", avg_mse, prog_bar=True)
+		self.log("avg_psnr_val", avg_psnr, prog_bar=True)
+
+		print(f"Validation - Avg MSE: {avg_mse:.4f}, Avg PSNR: {avg_psnr:.4f}")
+
+		self.val_mse_values.clear()
+		self.val_psnr_values.clear()
 
 	def configure_optimizers(self):
 		params = filter(lambda p: p.requires_grad, self.model.parameters())

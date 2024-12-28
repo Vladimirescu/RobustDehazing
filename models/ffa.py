@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import torchvision.transforms as tfs 
 
 
 def default_conv(in_channels, out_channels, kernel_size, bias=True):
@@ -68,7 +69,7 @@ class Group(nn.Module):
 
 
 class FFA(nn.Module):
-    def __init__(self, gps, blocks, conv=default_conv):
+    def __init__(self, gps=3, blocks=19, conv=default_conv):
         super(FFA, self).__init__()
         self.gps=gps
         self.dim=64
@@ -93,8 +94,19 @@ class FFA(nn.Module):
 
         self.pre = nn.Sequential(*pre_process)
         self.post = nn.Sequential(*post_precess)
+        
+        # Received images are [-1, 1]. Add the corresponding normalization in the forward()
+        self.normalize = tfs.Compose([
+            tfs.Lambda(lambda img: img * 0.5 + 0.5),
+            tfs.Normalize(mean=[0.64, 0.6, 0.58], std=[0.14, 0.15, 0.152])
+        ])
 
     def forward(self, x1):
+        
+        ### Normalize
+        x1 = self.normalize(x1)
+        ###
+        
         x = self.pre(x1)
         
         res1=self.g1(x)
@@ -105,6 +117,9 @@ class FFA(nn.Module):
         out=w[:,0,::]*res1+w[:,1,::]*res2+w[:,2,::]*res3
         out=self.palayer(out)
         
-        x=self.post(out)
+        x = self.post(out) + x1
         
-        return x + x1
+        # [0, 1] -> [-1, 1]
+        x = 2 * x - 1
+        
+        return x

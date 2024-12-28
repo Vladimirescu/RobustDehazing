@@ -1,0 +1,4 @@
+name: OHAZE
+
+test_path: /alpha/vvasilescu/OHAZE/test
+test_size: null # test on the full images

@@ -1,0 +1,4 @@
+name: DenseHaze
+
+test_path: /alpha/vvasilescu/DenseHaze
+test_size: null # test on the full images

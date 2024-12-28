@@ -19,10 +19,26 @@ class TargetAdapt(nn.Module):
             
         if isinstance(self.model, DehazeFormer):
             target_layer = TransformerBlock
+
+            def get_output_dim(module):
+                return module.mlp.mlp[-1].out_channels
+
         elif isinstance(self.model, FFA):
             target_layer = FFABlock
+
+            def get_output_dim(module):
+                ValueError("Not implemented.")
+
+        elif isinstance(self.model, MB_TaylorFormer):
+            target_layer = MHCAEncoder
+
+            def get_output_dim(module):
+                return module.dim
+
         else:
             raise ValueError(f"Unknown model type {self.model}.")
+
+        self.get_output_dim = get_output_dim
 
         self._add_new_params(target_layer, k=self.k)
 
@@ -30,7 +46,7 @@ class TargetAdapt(nn.Module):
         for name, module in self.model.named_modules():
             if isinstance(module, target_layer):
         
-                out_ch = module.mlp.mlp[-1].out_channels
+                out_ch = self.get_output_dim(module)
                 adaptor = nn.Conv2d(
                     out_ch, out_ch, self.k, 1, self.k // 2, bias=False
                 )

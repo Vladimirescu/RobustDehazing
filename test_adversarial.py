@@ -10,11 +10,10 @@ from omegaconf import OmegaConf
 
 from pytorch_msssim import ssim
 
-from utils import AverageMeter, write_img, chw_to_hwc
+from utils import AverageMeter, write_img, chw_to_hwc, load_model
 from datasets.loader import PairLoader
 from models import *
 from attacks import get_attack_from_config
-from test import load_model
 
 
 def test_adv(test_loader, network, result_dir, attack_config):
@@ -90,8 +89,8 @@ def test_adv(test_loader, network, result_dir, attack_config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='dehazeformer-t', type=str, help='model name')
-    parser.add_argument('--num_workers', default=16, type=int, help='number of workers')
-    parser.add_argument('--data_dir', default='D:/RESIDE/', type=str, help='path to dataset')
+    parser.add_argument('--num_workers', default=2, type=int, help='number of workers')
+    parser.add_argument('--dataset', default='reside', type=str, help='dataset name. should have corresponding .yaml in configs/data')
     parser.add_argument('--save_dir', default='./saved_models/', type=str, help='path to models saving')
     parser.add_argument('--result_dir', default='./results_adv/', type=str, help='path to results saving')
     parser.add_argument('--type', default='base', type=str, help='experiment setting')
@@ -101,18 +100,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     network = load_model(args).cuda()
+    data_config = OmegaConf.load(
+        os.path.join("./configs/data", args.dataset + ".yaml")
+    )
+    attack_config = OmegaConf.load(args.attack_config)
 
-    test_dataset = PairLoader(args.data_dir, 'test', 'valid')
+    test_dataset = PairLoader(data_config.test_path, 'valid', size=data_config.test_size)
     test_loader = DataLoader(test_dataset,
-                             batch_size=4,
+                             batch_size=16,
                              num_workers=args.num_workers,
                              pin_memory=True)
-
-    attack_config = OmegaConf.load(args.attack_config)
     
     if args.fine_tuned:
-        result_dir = os.path.join(args.result_dir, "fine_tuned", args.model, attack_config.name)
+        result_dir = os.path.join(args.result_dir, data_config.name, "fine_tuned", args.model, attack_config.name)
     else:
-        result_dir = os.path.join(args.result_dir, args.type, args.model, attack_config.name)
+        result_dir = os.path.join(args.result_dir, data_config.name, args.type, args.model, attack_config.name)
         
     test_adv(test_loader, network, result_dir, attack_config)

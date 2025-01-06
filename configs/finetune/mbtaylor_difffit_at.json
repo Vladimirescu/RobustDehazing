@@ -3,17 +3,14 @@
     "patch_size": 256,
     "valid_mode": "valid",
     "edge_decay": 0,
-    "epochs": 100,
+    "epochs": 15,
     "eval_freq": 1,
     "samples_per_epoch": 10000,
     "base_model": "mb_taylor_former_b",
     "resume_path": "saved_models/base/mb_taylor_former_b.pth",
     "ft": {
         "lr": 1e-5,
-        "fine_tune_type": "adapt",
-        "fine_tune_kwargs": {
-            "k": 3
-        },
+        "fine_tune_type": "difffit",
         "attack": "TargetAttack",
         "attack_kwargs": {
             "norm_type": "l_inf", 

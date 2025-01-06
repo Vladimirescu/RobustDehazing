@@ -21,11 +21,25 @@ class DiffFitModel(nn.Module):
             target_layer = TransformerBlock
         elif isinstance(self.model, FFA):
             target_layer = FFABlock
+        elif isinstance(self.model, MB_TaylorFormer):
+            target_layer = MHCAEncoder
         else:
             raise ValueError(f"Unknown model type {self.model}.")
             
         self._add_new_params(target_layer)
-        
+
+    def _get_new_forward(self, scale, original_forward):
+        if isinstance(self.model, DehazeFormer):
+            def new_forward(x, scale=scale, original_forward=original_forward):
+                return scale * original_forward(x)
+        elif isinstance(self.model, FFA):
+            ValueError("Not implemented.")
+        elif isinstance(self.model, MB_TaylorFormer):
+            def new_forward(x, size, scale=scale, original_forward=original_forward):
+                return scale * original_forward(x, size)
+
+        return new_forward
+
     def _add_new_params(self, target_layer):
         
         for name, module in self.model.named_modules():
@@ -36,11 +50,7 @@ class DiffFitModel(nn.Module):
                 self.new_weights.append(scale)
 
                 original_forward = module.forward
-                
-                def new_forward(x, scale=scale, original_forward=original_forward):
-                    return scale * original_forward(x)
-                
-                module.forward = new_forward
+                module.forward = self._get_new_forward(scale, original_forward)
                 
     def forward(self, x):
         return self.model(x)

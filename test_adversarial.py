@@ -16,7 +16,7 @@ from models import *
 from attacks import get_attack_from_config
 
 
-def test_adv(test_loader, network, result_dir, attack_config):
+def test_adv(test_loader, network, result_dir, attack_config, max_size=512):
     PSNR = AverageMeter()
     SSIM = AverageMeter()
     LINF = AverageMeter()
@@ -35,6 +35,13 @@ def test_adv(test_loader, network, result_dir, attack_config):
         inpt = batch['source'].cuda()
         target = batch['target'].cuda()
         filename = batch['filename']
+
+        _, _, H, W = inpt.shape
+        if max_size is not None:
+            if H > max_size or W > max_size:
+                inpt = F.interpolate(inpt, size=(max_size, max_size), mode="bilinear", align_corners=False)
+                target = F.interpolate(target, size=(max_size, max_size), mode="bilinear", align_corners=False)
+
 
         input_adv = adv_attack(inpt, target)
 
@@ -105,9 +112,13 @@ if __name__ == '__main__':
     )
     attack_config = OmegaConf.load(args.attack_config)
 
-    test_dataset = PairLoader(data_config.test_path, 'valid', size=data_config.test_size)
+    first_n_imgs = None if "first_n_imgs" not in data_config.keys() else data_config.first_n_imgs
+
+    test_dataset = PairLoader(data_config.test_path, 'valid', 
+                                size=data_config.test_size,
+                                first_n_imgs=first_n_imgs)
     test_loader = DataLoader(test_dataset,
-                             batch_size=16,
+                             batch_size=4 if data_config.test_size else 1,
                              num_workers=args.num_workers,
                              pin_memory=True)
     

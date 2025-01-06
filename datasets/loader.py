@@ -62,7 +62,12 @@ class PairLoader(Dataset):
     To adapt each network, its recommended to add in the forward() of each module the corresponding 
     pre-processing.
     """
-    def __init__(self, data_dir, mode, size=256, edge_decay=0, only_h_flip=True):
+    def __init__(self, data_dir, mode, 
+                    size=256, 
+                    edge_decay=0, 
+                    only_h_flip=True,
+                    first_n_imgs=None):
+                    
         assert mode in ['train', 'valid', 'test']
 
         if size is None:
@@ -77,7 +82,24 @@ class PairLoader(Dataset):
         self.root_dir = data_dir
   
         self.img_names = sorted(os.listdir(os.path.join(self.root_dir, 'GT')))
+        
+        self.img_names = self._filter_filenames(self.img_names)
+        
+        if isinstance(first_n_imgs, int):
+            print(f"Keeping only the first {first_n_imgs} images.")
+            self.img_names = self.img_names[:first_n_imgs]
+
         self.img_num = len(self.img_names)
+
+    def _filter_filenames(self, files):
+        new_files = []
+        for f in files:
+            if f.startswith("._"):
+                continue
+            else:
+                new_files.append(f)
+        
+        return new_files
 
     def __len__(self):
         return self.img_num

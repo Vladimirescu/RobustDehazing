@@ -1,0 +1,4 @@
+name: RSHaze
+
+test_path: /alpha/vvasilescu/test_rshaze/test
+test_size: 512 # test on the full images

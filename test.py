@@ -30,8 +30,8 @@ def predict_patches(model, imgs, bs=4):
     
 
 def test(test_loader, network, result_dir, 
-         max_size=1024, 
-         show_original_psnr=False):
+         max_size=512, 
+         show_original_psnr=True):
     PSNR = AverageMeter()
     if show_original_psnr:
         PSNR_o = AverageMeter()
@@ -51,17 +51,20 @@ def test(test_loader, network, result_dir,
 
         with torch.no_grad():
             _, _, H, W = inpt.shape
-            if H > max_size or W > max_size:
-                """First approach - patchify, predict, reconstruct"""
-                # patches, padded_image = extract_patches(inpt, max_size)
-                # print(f"Constructed patches {patches.shape}.")
-                # output_patches = predict_patches(network, patches)
-                # output = reconstruct_image(output_patches, inpt, max_size)
-                
-                """Second approach - reshape"""
-                inpt = F.interpolate(inpt, size=(max_size, max_size), mode="bilinear", align_corners=False)
-                target = F.interpolate(target, size=(max_size, max_size), mode="bilinear", align_corners=False)
-                output = network(inpt)
+            if max_size is not None:
+                if H > max_size or W > max_size:
+                    """First approach - patchify, predict, reconstruct"""
+                    # patches, padded_image = extract_patches(inpt, max_size)
+                    # print(f"Constructed patches {patches.shape}.")
+                    # output_patches = predict_patches(network, patches)
+                    # output = reconstruct_image(output_patches, inpt, max_size)
+                    
+                    """Second approach - reshape"""
+                    inpt = F.interpolate(inpt, size=(max_size, max_size), mode="bilinear", align_corners=False)
+                    target = F.interpolate(target, size=(max_size, max_size), mode="bilinear", align_corners=False)
+                    output = network(inpt)
+                else:
+                    output = network(inpt) 
             else:
                 output = network(inpt)
 
@@ -108,9 +111,6 @@ def test(test_loader, network, result_dir,
         f_result.close()
         print(f"Average results: PSNR = {PSNR.avg:.2f} SSIM = {SSIM.avg:.4f}")
 
-
-
-
         
 if __name__ == '__main__':
     
@@ -128,7 +128,11 @@ if __name__ == '__main__':
         os.path.join("./configs/data", args.dataset + ".yaml")
     )
     
-    test_dataset = PairLoader(data_config.test_path, 'valid', size=data_config.test_size)
+    first_n_imgs = None if "first_n_imgs" not in data_config.keys() else data_config.first_n_imgs
+
+    test_dataset = PairLoader(data_config.test_path, 'valid', 
+                                size=data_config.test_size,
+                                first_n_imgs=first_n_imgs)
     test_loader = DataLoader(test_dataset,
                              batch_size=16 if data_config.test_size else 1,
                              num_workers=args.num_workers,

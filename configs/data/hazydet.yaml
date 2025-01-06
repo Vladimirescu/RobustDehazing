@@ -1,0 +1,5 @@
+name: HazyDet
+
+test_path: /alpha/vvasilescu/hazy_det/val
+test_size: null # test on the full images
+first_n_imgs: 50

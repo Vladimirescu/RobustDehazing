@@ -17,6 +17,9 @@ class LastLayerTune(nn.Module):
                 p.requires_grad = True
         elif isinstance(self.model, FFA):
             ...
+        elif isinstance(self.model, MB_TaylorFormer):
+            for p in self.model.output.parameters():
+                p.requires_grad = True
         else:
             raise ValueError(f"Unknown model type {self.model}.")
                     

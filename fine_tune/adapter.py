@@ -39,8 +39,21 @@ class TargetAdapt(nn.Module):
             raise ValueError(f"Unknown model type {self.model}.")
 
         self.get_output_dim = get_output_dim
-
         self._add_new_params(target_layer, k=self.k)
+
+
+    def _get_new_forward(self, adaptor, original_forward):
+        if isinstance(self.model, DehazeFormer):
+            def new_forward(x, adaptor=adaptor, original_forward=original_forward):
+                return adaptor(original_forward(x))
+        elif isinstance(self.model, FFA):
+            ValueError("Not implemented.")
+        elif isinstance(self.model, MB_TaylorFormer):
+            def new_forward(x, size, adaptor=adaptor, original_forward=original_forward):
+                return adaptor(original_forward(x, size))
+
+        return new_forward
+
 
     def _add_new_params(self, target_layer, k):
         for name, module in self.model.named_modules():
@@ -52,12 +65,8 @@ class TargetAdapt(nn.Module):
                 )
                 identity_init(adaptor)
 
-                original_forward = module.forward
-                
-                def new_forward(x, adaptor=adaptor, original_forward=original_forward):
-                    return adaptor(original_forward(x))
-                
-                module.forward = new_forward
+                original_forward = module.forward                
+                module.forward = self._get_new_forward(adaptor, original_forward)
                 self.new_weights.append(adaptor.weight)
 
     def forward(self, x):

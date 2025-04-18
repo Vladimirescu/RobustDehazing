@@ -1,0 +1,5 @@
+name: RICE1
+
+test_path: /alpha/vvasilescu/RICE1/RICE1
+test_size: null # test on the full images
+first_n_imgs: 50

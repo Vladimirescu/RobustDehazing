@@ -30,7 +30,7 @@ def predict_patches(model, imgs, bs=4):
     
 
 def test(test_loader, network, result_dir, 
-         max_size=512, 
+         max_size=1024, 
          show_original_psnr=True):
     PSNR = AverageMeter()
     if show_original_psnr:
@@ -115,9 +115,9 @@ def test(test_loader, network, result_dir,
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='dehazeformer-t', type=str, help='model name')
+    parser.add_argument('--model', default='dehazeformer-t', type=str, help='base model name')
     parser.add_argument('--num_workers', default=2, type=int, help='number of workers')
-    parser.add_argument('--dataset', default='reside', type=str, help='path to dataset')
+    parser.add_argument('--dataset', default='reside', type=str, help='dataset .yaml file name (should be in ./configs/data)')
     parser.add_argument('--save_dir', default='./saved_models/', type=str, help='path to models saving')
     parser.add_argument('--result_dir', default='./results/', type=str, help='path to results saving')
     parser.add_argument("--fine_tuned", action="store_true", help="Whether this was a fine-tuned model. If so, lod in 2 stages.")
